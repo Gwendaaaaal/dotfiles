@@ -18,4 +18,17 @@ return {
       vim.keymap.set('n', '<leader>H', ':Stdheader<CR>', { desc = '42 [H]eader' })
     end,
   },
+  {
+    'alex-popov-tech/store.nvim',
+    dependencies = {
+      'OXY2DEV/markview.nvim', -- optional, for pretty readme preview / help window
+    },
+    cmd = 'Store',
+    keys = {
+      { '<leader>os', '<cmd>Store<cr>', desc = '[O]pen Plugin [S]tore' },
+    },
+    opts = {
+      -- optional configuration here
+    },
+  },
 }
