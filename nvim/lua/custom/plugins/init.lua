@@ -31,4 +31,47 @@ return {
       -- optional configuration here
     },
   },
+  {
+    'rmagatti/goto-preview',
+    event = 'BufEnter',
+    config = true,
+    keys = {
+      {
+        '<leader>gpd',
+        "<cmd>lua require('goto-preview').goto_preview_definition()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [D]efinition',
+      },
+      {
+        '<leader>gpD',
+        "<cmd>lua require('goto-preview').goto_preview_declaration()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [D]eclaration',
+      },
+      {
+        '<leader>gpi',
+        "<cmd>lua require('goto-preview').goto_preview_implementation()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [I]mplementation',
+      },
+      {
+        '<leader>gpt',
+        "<cmd>lua require('goto-preview').goto_preview_type_definition()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [T]ype definition',
+      },
+      {
+        '<leader>gpr',
+        "<cmd>lua require('goto-preview').goto_preview_references()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [R]eferences',
+      },
+      {
+        '<leader>gpc',
+        "<cmd>lua require('goto-preview').close_all_win()<CR>",
+        noremap = true,
+        desc = '[G]oto [P]review [C]lose all preview windows',
+      },
+    },
+  },
 }
