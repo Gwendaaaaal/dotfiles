@@ -8,14 +8,22 @@ return {
     },
     config = function()
       vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { desc = '[E]xplore Tree' })
-      require('nvim-tree').setup {}
+      require('nvim-tree').setup {
+        actions = {
+          open_file = {
+            window_picker = {
+              enable = false,
+            },
+          },
+        },
+      }
     end,
   },
 
   {
     '42Paris/42header',
     config = function()
-      vim.keymap.set('n', '<leader>H', ':Stdheader<CR>', { desc = '42 [H]eader' })
+      vim.keymap.set('n', '<leader>h', ':Stdheader<CR>', { desc = '42 [H]eader' })
     end,
   },
   {
@@ -102,4 +110,5 @@ return {
       use_buffer = false, -- Capture Codex stdout into a normal buffer instead of a terminal buffer
     },
   },
+  { 'mg979/vim-visual-multi' },
 }
