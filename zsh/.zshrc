@@ -119,10 +119,10 @@ source ~/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 # Created by `pipx` on 2024-10-01 22:01:26
-export PATH="$PATH:/home/gwendal/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
 
 # bun completions
-[ -s "/home/gwendal/.bun/_bun" ] && source "/home/gwendal/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
@@ -134,13 +134,13 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 #   - the correct directories to the PATH
 #   - auto-completion for the opam binary
 # This section can be safely removed at any time if needed.
-[[ ! -r '/home/gwendal/.opam/opam-init/init.zsh' ]] || source '/home/gwendal/.opam/opam-init/init.zsh' > /dev/null 2> /dev/null
+[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
 # END opam configuration
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
-eval "$(zoxide init zsh --cmd cd)"
+if command -v zoxide >/dev/null 2>&1; then eval "$(zoxide init zsh --cmd cd)"; fi
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
