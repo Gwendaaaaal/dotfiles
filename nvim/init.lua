@@ -398,7 +398,9 @@ require('lazy').setup({
 
       -- Shortcut for searching your Neovim configuration files
       vim.keymap.set('n', '<leader>sn', function()
-        builtin.find_files { cwd = vim.fn.stdpath 'config' }
+        local config_dir = vim.fn.fnamemodify(vim.fn.resolve(vim.fn.stdpath 'config' .. '/init.lua'), ':h')
+
+        builtin.find_files { cwd = config_dir }
       end, { desc = '[S]earch [N]eovim files' })
 
       vim.keymap.set('n', '<leader>shf', function()
