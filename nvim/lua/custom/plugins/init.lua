@@ -84,30 +84,114 @@ return {
   },
   {
     'kkrampis/codex.nvim',
+
     lazy = true,
-    cmd = { 'Codex', 'CodexToggle' }, -- Optional: Load only on command execution
+
+    cmd = {
+      'Codex',
+      'CodexToggle',
+    },
+
     keys = {
       {
-        '<leader>cc', -- Change this to your preferred keybinding
+        '<leader>cc',
         function()
-          require('codex').toggle()
+          local codex = require 'codex'
+          local state = require 'codex.state'
+
+          if state.win and vim.api.nvim_win_is_valid(state.win) then
+            local config = vim.api.nvim_win_get_config(state.win)
+            local is_popup = config.relative ~= ''
+
+            codex.close()
+
+            if is_popup then
+              return
+            end
+          end
+
+          codex.open()
+
+          vim.schedule(function()
+            if state.win and vim.api.nvim_win_is_valid(state.win) then
+              vim.api.nvim_set_current_win(state.win)
+              vim.cmd 'startinsert'
+            end
+          end)
         end,
-        desc = 'Toggle Codex popup or side-panel',
+
+        desc = 'Codex popup',
+        mode = { 'n', 't' },
+      },
+
+      {
+        '<leader>cw',
+        function()
+          local codex = require 'codex'
+          local state = require 'codex.state'
+
+          local target_win = vim.api.nvim_get_current_win()
+          local current_buf = vim.api.nvim_win_get_buf(target_win)
+
+          if state.buf and vim.api.nvim_buf_is_valid(state.buf) and current_buf == state.buf then
+            vim.cmd 'stopinsert'
+
+            local previous_buf = vim.w[target_win].codex_previous_buf
+
+            if previous_buf and vim.api.nvim_buf_is_valid(previous_buf) then
+              vim.api.nvim_win_set_buf(target_win, previous_buf)
+            else
+              vim.cmd 'enew'
+            end
+
+            vim.w[target_win].codex_previous_buf = nil
+            state.win = nil
+            return
+          end
+
+          if state.win and vim.api.nvim_win_is_valid(state.win) then
+            codex.close()
+          end
+
+          if not state.buf or not vim.api.nvim_buf_is_valid(state.buf) then
+            codex.open()
+
+            if state.win and vim.api.nvim_win_is_valid(state.win) then
+              codex.close()
+            end
+
+            if not state.buf or not vim.api.nvim_buf_is_valid(state.buf) then
+              vim.notify('Impossible de créer le buffer Codex', vim.log.levels.ERROR)
+              return
+            end
+          end
+
+          vim.w[target_win].codex_previous_buf = current_buf
+          vim.api.nvim_win_set_buf(target_win, state.buf)
+
+          state.win = target_win
+
+          vim.api.nvim_set_current_win(target_win)
+          vim.cmd 'startinsert'
+        end,
+
+        desc = 'Codex in current window',
         mode = { 'n', 't' },
       },
     },
+
     opts = {
       keymaps = {
-        toggle = nil, -- Keybind to toggle Codex window (Disabled by default, watch out for conflicts)
-        quit = '<C-q>', -- Keybind to close the Codex window (default: Ctrl + q)
-      }, -- Disable internal default keymap (<leader>cc -> :CodexToggle)
-      border = 'rounded', -- Options: 'single', 'double', or 'rounded'
-      width = 0.8, -- Width of the floating window (0.0 to 1.0)
-      height = 0.8, -- Height of the floating window (0.0 to 1.0)
-      model = nil, -- Optional: pass a string to use a specific model (e.g., 'o3-mini')
-      autoinstall = true, -- Automatically install the Codex CLI if not found
-      panel = false, -- Open Codex in a side-panel (vertical split) instead of floating window
-      use_buffer = false, -- Capture Codex stdout into a normal buffer instead of a terminal buffer
+        toggle = nil,
+        quit = '<C-q>',
+      },
+      border = 'rounded',
+      width = 0.8,
+      height = 0.8,
+      model = nil,
+      autoinstall = true,
+      panel = false,
+      use_buffer = false,
     },
   },
   { 'mg979/vim-visual-multi' },

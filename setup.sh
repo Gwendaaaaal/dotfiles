@@ -4,7 +4,12 @@ set -euo pipefail
 
 DOTFILES="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN="$HOME/.local/bin"
+
 STOW_VERSION="2.4.1"
+ATUIN_VERSION="18.18.1"
+RIPGREP_VERSION="15.2.0"
+FD_VERSION="10.4.2"
+TMUX_VERSION="3.6b"
 
 export PATH="$LOCAL_BIN:$PATH"
 
@@ -44,6 +49,79 @@ download_file() {
         echo "Error: curl or wget is required." >&2
         exit 1
     fi
+}
+
+linux_target() {
+    local arch
+
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo "Error: automatic binary installation currently supports Linux only." >&2
+        exit 1
+    fi
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            arch="x86_64"
+            ;;
+        aarch64|arm64)
+            arch="aarch64"
+            ;;
+        *)
+            echo "Error: unsupported architecture: $(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+
+    printf '%s-unknown-linux-musl\n' "$arch"
+}
+
+tmux_target() {
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo "Error: automatic tmux installation currently supports Linux only." >&2
+        exit 1
+    fi
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            printf 'linux-x86_64\n'
+            ;;
+        aarch64|arm64)
+            printf 'linux-arm64\n'
+            ;;
+        *)
+            echo "Error: unsupported architecture: $(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+}
+
+install_tar_binary() {
+    local url="$1"
+    local binary_name="$2"
+    local tmp
+    local binary
+
+    require tar
+    require find
+    require head
+
+    tmp="$(mktemp -d)"
+
+    download_file "$url" "$tmp/archive.tar.gz"
+    tar -xzf "$tmp/archive.tar.gz" -C "$tmp"
+
+    binary="$(find "$tmp" -type f -name "$binary_name" | head -n 1)"
+
+    if [[ -z "$binary" ]]; then
+        rm -rf "$tmp"
+        echo "Error: '$binary_name' was not found in downloaded archive." >&2
+        exit 1
+    fi
+
+    cp "$binary" "$LOCAL_BIN/$binary_name"
+    chmod +x "$LOCAL_BIN/$binary_name"
+
+    rm -rf "$tmp"
 }
 
 # ------------------------------------------------------------
@@ -134,12 +212,104 @@ install_fzf() {
 }
 
 # ------------------------------------------------------------
+# Atuin
+# ------------------------------------------------------------
+
+install_atuin() {
+    if command -v atuin >/dev/null 2>&1; then
+        echo "[OK] atuin already installed"
+        return
+    fi
+
+    echo "[+] Installing atuin..."
+
+    local target
+    target="$(linux_target)"
+
+    install_tar_binary \
+        "https://github.com/atuinsh/atuin/releases/download/v${ATUIN_VERSION}/atuin-${target}.tar.gz" \
+        atuin
+
+    echo "[OK] atuin installed"
+}
+
+# ------------------------------------------------------------
+# ripgrep
+# ------------------------------------------------------------
+
+install_ripgrep() {
+    if command -v rg >/dev/null 2>&1; then
+        echo "[OK] ripgrep already installed"
+        return
+    fi
+
+    echo "[+] Installing ripgrep..."
+
+    local target
+    target="$(linux_target)"
+
+    install_tar_binary \
+        "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-${target}.tar.gz" \
+        rg
+
+    echo "[OK] ripgrep installed"
+}
+
+# ------------------------------------------------------------
+# fd
+# ------------------------------------------------------------
+
+install_fd() {
+    if command -v fd >/dev/null 2>&1; then
+        echo "[OK] fd already installed"
+        return
+    fi
+
+    echo "[+] Installing fd..."
+
+    local target
+    target="$(linux_target)"
+
+    install_tar_binary \
+        "https://github.com/sharkdp/fd/releases/download/v${FD_VERSION}/fd-v${FD_VERSION}-${target}.tar.gz" \
+        fd
+
+    echo "[OK] fd installed"
+}
+
+# ------------------------------------------------------------
+# tmux
+# ------------------------------------------------------------
+
+install_tmux() {
+    if command -v tmux >/dev/null 2>&1; then
+        echo "[OK] tmux already installed"
+        return
+    fi
+
+    echo "[+] Installing tmux..."
+
+    local target
+    target="$(tmux_target)"
+
+    install_tar_binary \
+        "https://github.com/tmux/tmux-builds/releases/download/v${TMUX_VERSION}/tmux-${TMUX_VERSION}-${target}.tar.gz" \
+        tmux
+
+    echo "[OK] tmux installed"
+}
+
+# ------------------------------------------------------------
 # Install tools
 # ------------------------------------------------------------
 
 install_stow
 install_zoxide
 install_fzf
+install_atuin
+install_ripgrep
+install_fd
+install_tmux
 
 # ------------------------------------------------------------
 # Dotfiles
@@ -151,9 +321,14 @@ mkdir -p "$HOME/.config/nvim"
 
 stow -d "$DOTFILES" --target="$HOME" zsh
 stow -d "$DOTFILES" --target="$HOME/.config/nvim" nvim
+stow -d "$DOTFILES" --target="$HOME" tmux
 
 echo
 echo "Done."
 echo "stow:   $(command -v stow)"
 echo "zoxide: $(command -v zoxide)"
 echo "fzf:    $(command -v fzf)"
+echo "atuin:  $(command -v atuin)"
+echo "rg:     $(command -v rg)"
+echo "fd:     $(command -v fd)"
+echo "tmux:   $(command -v tmux)"

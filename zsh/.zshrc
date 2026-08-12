@@ -141,6 +141,13 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
-if command -v zoxide >/dev/null 2>&1; then eval "$(zoxide init zsh --cmd cd)"; fi
-
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+if command -v atuin >/dev/null 2>&1; then
+    eval "$(atuin init zsh --disable-up-arrow)"
+fi
+
+if command -v zoxide >/dev/null 2>&1; then
+	eval "$(zoxide init zsh --cmd cd)"
+fi
+
