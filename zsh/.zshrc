@@ -97,12 +97,6 @@ source $ZSH/oh-my-zsh.sh
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
-# Set personal aliases, overriding those provided by oh-my-zsh libs,
-# plugins, and themes. Aliases can be placed here, though oh-my-zsh
-# users are encouraged to define aliases within the ZSH_CUSTOM folder.
-# For a full list of active aliases, run `alias`.
-#
-# Example aliases
 function ccw ()
 {
 	norminette -R CheckForbiddenSourceHeader
@@ -113,6 +107,7 @@ alias ls='ls --color=auto'
 alias norm='norminette'
 alias sshvm='ssh 145.241.163.164 -i ~/.ssh/id_rsa -l ubuntu'
 alias sshvm2='ssh ubuntu@149.202.53.245'
+alias t='tmux new -As'
 source ~/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
