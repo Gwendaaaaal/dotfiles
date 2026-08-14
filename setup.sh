@@ -300,6 +300,61 @@ install_tmux() {
 }
 
 # ------------------------------------------------------------
+# Powerlevel10k
+# ------------------------------------------------------------
+
+install_powerlevel10k() {
+    local p10k_dir
+    p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+
+    if [[ -f "$p10k_dir/powerlevel10k.zsh-theme" ]]; then
+        echo "[OK] powerlevel10k already installed"
+        return
+    fi
+
+    echo "[+] Installing powerlevel10k..."
+
+    require git
+
+    mkdir -p "$(dirname "$p10k_dir")"
+
+    git clone --depth=1 \
+        https://github.com/romkatv/powerlevel10k.git \
+        "$p10k_dir"
+
+    echo "[OK] powerlevel10k installed"
+}
+
+# ------------------------------------------------------------
+# Oh My Zsh
+# ------------------------------------------------------------
+
+install_oh_my_zsh() {
+    local omz_dir="$HOME/.oh-my-zsh"
+
+    if [[ -f "$omz_dir/oh-my-zsh.sh" ]]; then
+        echo "[OK] oh-my-zsh already installed"
+        return
+    fi
+
+    echo "[+] Installing oh-my-zsh..."
+
+    require git
+    require zsh
+
+    if [[ -e "$omz_dir" ]]; then
+        echo "Error: '$omz_dir' already exists but doesn't look like an Oh My Zsh installation." >&2
+        exit 1
+    fi
+
+    git clone --depth=1 \
+        https://github.com/ohmyzsh/ohmyzsh.git \
+        "$omz_dir"
+
+    echo "[OK] oh-my-zsh installed"
+}
+
+# ------------------------------------------------------------
 # Install tools
 # ------------------------------------------------------------
 
@@ -310,6 +365,8 @@ install_atuin
 install_ripgrep
 install_fd
 install_tmux
+install_oh_my_zsh
+install_powerlevel10k
 
 # ------------------------------------------------------------
 # Dotfiles
@@ -332,3 +389,5 @@ echo "atuin:  $(command -v atuin)"
 echo "rg:     $(command -v rg)"
 echo "fd:     $(command -v fd)"
 echo "tmux:   $(command -v tmux)"
+echo "omz:    $HOME/.oh-my-zsh"
+echo "p10k:   ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
