@@ -1,3 +1,34 @@
+local function leet(command)
+  local info = vim.api.nvim_get_commands({}).Leet
+
+  -- First launch: initialize leetcode.nvim.
+  if not info or info.nargs == '0' then
+    vim.cmd 'Leet'
+  end
+
+  local attempts = 0
+
+  local function run_when_ready()
+    local config = require 'leetcode.config'
+
+    if config.auth and config.auth.is_signed_in then
+      vim.cmd('Leet ' .. command)
+      return
+    end
+
+    attempts = attempts + 1
+
+    if attempts >= 100 then
+      vim.notify('LeetCode authentication timed out', vim.log.levels.ERROR)
+      return
+    end
+
+    vim.defer_fn(run_when_ready, 100)
+  end
+
+  run_when_ready()
+end
+
 return {
   {
     'nvim-tree/nvim-tree.lua',
@@ -192,6 +223,54 @@ return {
       autoinstall = true,
       panel = false,
       use_buffer = false,
+    },
+  },
+  {
+    'kawre/leetcode.nvim',
+
+    cmd = 'Leet',
+
+    build = ':TSUpdate html',
+
+    dependencies = {
+      'nvim-telescope/telescope.nvim',
+      'nvim-lua/plenary.nvim',
+      'MunifTanjim/nui.nvim',
+    },
+
+    keys = {
+      {
+        '<leader>ll',
+        function()
+          leet 'list'
+        end,
+        desc = '[L]eetCode [L]ist',
+      },
+      {
+        '<leader>lt',
+        function()
+          leet 'test'
+        end,
+        desc = '[L]eetCode [T]est',
+      },
+      {
+        '<leader>ls',
+        function()
+          leet 'submit'
+        end,
+        desc = '[L]eetCode [S]ubmit',
+      },
+    },
+
+    opts = {
+      lang = 'c',
+      picker = {
+        provider = 'telescope',
+      },
+
+      plugins = {
+        non_standalone = true,
+      },
     },
   },
   { 'mg979/vim-visual-multi' },
