@@ -103,14 +103,13 @@ install_tar_binary() {
 
     require tar
     require find
-    require head
 
     tmp="$(mktemp -d)"
 
     download_file "$url" "$tmp/archive.tar.gz"
     tar -xzf "$tmp/archive.tar.gz" -C "$tmp"
 
-    binary="$(find "$tmp" -type f -name "$binary_name" | head -n 1)"
+	binary="$(find "$tmp" -type f -name "$binary_name" -print -quit)"
 
     if [[ -z "$binary" ]]; then
         rm -rf "$tmp"
