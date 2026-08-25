@@ -815,7 +815,22 @@ require('lazy').setup({
         },
       },
 
-      snippets = { preset = 'luasnip' },
+      snippets = {
+        preset = 'luasnip',
+        active = function(filter)
+          local direction = filter and filter.direction or 1
+          return require('luasnip').locally_jumpable(direction)
+        end,
+        jump = function(direction)
+          local luasnip = require 'luasnip'
+          if not luasnip.locally_jumpable(direction) then
+            return false
+          end
+
+          luasnip.jump(direction)
+          return true
+        end,
+      },
 
       -- Blink.cmp includes an optional, recommended rust fuzzy matcher,
       -- which automatically downloads a prebuilt binary when enabled.

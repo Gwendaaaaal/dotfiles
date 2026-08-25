@@ -247,11 +247,11 @@ return {
         desc = '[L]eetCode [L]ist',
       },
       {
-        '<leader>lt',
+        '<leader>lr',
         function()
-          leet 'test'
+          leet 'run'
         end,
-        desc = '[L]eetCode [T]est',
+        desc = '[L]eetCode [R]un',
       },
       {
         '<leader>ls',
@@ -259,6 +259,55 @@ return {
           leet 'submit'
         end,
         desc = '[L]eetCode [S]ubmit',
+      },
+      {
+        '<leader>lc',
+        function()
+          leet 'console'
+        end,
+        desc = '[L]eetCode [C]onsole',
+      },
+      {
+        '<leader>ld',
+        function()
+          leet 'daily'
+        end,
+        desc = '[L]eetCode [D]aily',
+      },
+      {
+        '<leader>lt',
+        function()
+          leet 'tabs'
+        end,
+        desc = '[L]eetCode [T]abs',
+      },
+      {
+        '<leader>li',
+        function()
+          leet 'info'
+        end,
+        desc = '[L]eetCode [I]nfo',
+      },
+      {
+        '<leader>lo',
+        function()
+          leet 'open'
+        end,
+        desc = '[L]eetCode [O]pen in browser',
+      },
+      {
+        '<leader>lD',
+        function()
+          leet 'desc'
+        end,
+        desc = '[L]eetCode [D]escription',
+      },
+      {
+        '<leader>lm',
+        function()
+          leet 'menu'
+        end,
+        desc = '[L]eetCode [M]enu',
       },
     },
 
