@@ -128,12 +128,13 @@ install_tar_binary() {
 # ------------------------------------------------------------
 
 install_stow() {
-    if command -v stow >/dev/null 2>&1; then
-        echo "[OK] stow already installed"
+    if command -v stow >/dev/null 2>&1 &&
+       stow --version | head -n 1 | grep -q "2.4.1"; then
+        echo "[OK] stow 2.4.1 already installed"
         return
     fi
 
-    echo "[+] Installing stow..."
+    echo "[+] Installing stow ${STOW_VERSION}..."
 
     require perl
     require make
@@ -157,7 +158,7 @@ install_stow() {
 
     rm -rf "$tmp"
 
-    echo "[OK] stow installed"
+    echo "[OK] stow ${STOW_VERSION} installed"
 }
 
 # ------------------------------------------------------------
@@ -366,6 +367,29 @@ install_fd
 install_tmux
 install_oh_my_zsh
 install_powerlevel10k
+
+# ------------------------------------------------------------
+# Reset
+# ------------------------------------------------------------
+
+reset_dotfiles() {
+    echo "[+] Removing dotfile symlinks..."
+
+    if ! command -v stow >/dev/null 2>&1; then
+        echo "Error: stow is required to reset dotfiles." >&2
+        exit 1
+    fi
+
+    stow -D -d "$DOTFILES" --target="$HOME" zsh
+    stow -D -d "$DOTFILES" --target="$HOME/.config/nvim" nvim
+    stow -D -d "$DOTFILES" --target="$HOME" tmux
+
+    echo "[OK] Dotfile symlinks removed"
+}
+
+if [[ "${1:-}" == "reset" ]]; then
+    reset_dotfiles
+fi
 
 # ------------------------------------------------------------
 # Dotfiles
