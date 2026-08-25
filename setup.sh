@@ -129,7 +129,7 @@ install_tar_binary() {
 
 install_stow() {
     if command -v stow >/dev/null 2>&1 &&
-       stow --version | head -n 1 | grep -q "2.4.1"; then
+       stow --version | head -n 1 | grep -q "$STOW_VERSION"; then
         echo "[OK] stow 2.4.1 already installed"
         return
     fi
@@ -157,6 +157,8 @@ install_stow() {
     )
 
     rm -rf "$tmp"
+
+	hash -r
 
     echo "[OK] stow ${STOW_VERSION} installed"
 }
@@ -387,9 +389,17 @@ reset_dotfiles() {
     echo "[OK] Dotfile symlinks removed"
 }
 
-if [[ "${1:-}" == "reset" ]]; then
-    reset_dotfiles
-fi
+case "${1:-}" in
+    reset)
+        reset_dotfiles
+        ;;
+    "")
+        ;;
+    *)
+        echo "Usage: $0 [reset]" >&2
+        exit 1
+        ;;
+esac
 
 # ------------------------------------------------------------
 # Dotfiles
