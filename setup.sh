@@ -10,6 +10,7 @@ ATUIN_VERSION="18.18.1"
 RIPGREP_VERSION="15.2.0"
 FD_VERSION="10.4.2"
 TMUX_VERSION="3.6b"
+NVIM_VERSION="0.12.5"
 
 export PATH="$LOCAL_BIN:$PATH"
 
@@ -87,6 +88,26 @@ tmux_target() {
             ;;
         aarch64|arm64)
             printf 'linux-arm64\n'
+            ;;
+        *)
+            echo "Error: unsupported architecture: $(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+}
+
+nvim_target() {
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo "Error: automatic Neovim installation currently supports Linux only." >&2
+        exit 1
+    fi
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            printf 'x86_64\n'
+            ;;
+        aarch64|arm64)
+            printf 'arm64\n'
             ;;
         *)
             echo "Error: unsupported architecture: $(uname -m)" >&2
@@ -302,6 +323,51 @@ install_tmux() {
 }
 
 # ------------------------------------------------------------
+# Neovim
+# ------------------------------------------------------------
+
+install_neovim() {
+    if command -v nvim >/dev/null 2>&1 &&
+       [[ "$(nvim --version | head -n 1)" == "NVIM v${NVIM_VERSION}" ]]; then
+        echo "[OK] neovim ${NVIM_VERSION} already installed"
+        return
+    fi
+
+    echo "[+] Installing neovim ${NVIM_VERSION}..."
+
+    require tar
+
+    local target
+    local tmp
+    local install_dir
+
+    target="$(nvim_target)"
+    tmp="$(mktemp -d)"
+    install_dir="$HOME/.local/opt/nvim-${NVIM_VERSION}"
+
+    mkdir -p "$HOME/.local/opt"
+
+    download_file \
+        "https://github.com/neovim/neovim/releases/download/v${NVIM_VERSION}/nvim-linux-${target}.tar.gz" \
+        "$tmp/nvim.tar.gz"
+
+    rm -rf "$install_dir"
+    mkdir -p "$install_dir"
+
+    tar -xzf "$tmp/nvim.tar.gz" \
+        -C "$install_dir" \
+        --strip-components=1
+
+    ln -sfn "$install_dir/bin/nvim" "$LOCAL_BIN/nvim"
+
+    rm -rf "$tmp"
+
+    hash -r
+
+    echo "[OK] neovim ${NVIM_VERSION} installed"
+}
+
+# ------------------------------------------------------------
 # Powerlevel10k
 # ------------------------------------------------------------
 
@@ -367,6 +433,7 @@ install_atuin
 install_ripgrep
 install_fd
 install_tmux
+install_neovim
 install_oh_my_zsh
 install_powerlevel10k
 
@@ -422,5 +489,6 @@ echo "atuin:  $(command -v atuin)"
 echo "rg:     $(command -v rg)"
 echo "fd:     $(command -v fd)"
 echo "tmux:   $(command -v tmux)"
+echo "nvim:   $(command -v nvim)"
 echo "omz:    $HOME/.oh-my-zsh"
 echo "p10k:   ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
