@@ -11,8 +11,9 @@ RIPGREP_VERSION="15.2.0"
 FD_VERSION="10.4.2"
 TMUX_VERSION="3.6b"
 NVIM_VERSION="0.12.5"
+TREE_SITTER_VERSION="0.26.13"
 
-export PATH="$LOCAL_BIN:$PATH"
+export PATH="$HOME/.cargo/bin:$LOCAL_BIN:$PATH"
 
 mkdir -p "$LOCAL_BIN"
 
@@ -323,6 +324,64 @@ install_tmux() {
 }
 
 # ------------------------------------------------------------
+# Tree-sitter CLI
+# ------------------------------------------------------------
+
+install_tree_sitter() {
+    if command -v tree-sitter >/dev/null 2>&1 &&
+       tree-sitter --version >/dev/null 2>&1 &&
+       [[ "$(tree-sitter --version)" == "tree-sitter ${TREE_SITTER_VERSION}"* ]]; then
+        echo "[OK] tree-sitter ${TREE_SITTER_VERSION} already installed"
+        return
+    fi
+
+    echo "[+] Installing tree-sitter ${TREE_SITTER_VERSION}..."
+
+    case "$(uname -m)" in
+        x86_64|amd64)
+            ;;
+        *)
+            echo "Error: prebuilt tree-sitter currently supports x86_64 only." >&2
+            exit 1
+            ;;
+    esac
+
+    local tmp
+    tmp="$(mktemp -d)"
+
+    download_file \
+        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/tree-sitter-linux-x86_64" \
+        "$tmp/tree-sitter"
+
+    download_file \
+        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/tree-sitter-linux-x86_64.sha256" \
+        "$tmp/tree-sitter.sha256"
+
+    (
+        cd "$tmp"
+
+        # The checksum file contains the original absolute path generated
+        # on GitHub Actions, so only compare the hash itself.
+        expected="$(cut -d ' ' -f1 tree-sitter.sha256)"
+        actual="$(sha256sum tree-sitter | cut -d ' ' -f1)"
+
+        if [[ "$expected" != "$actual" ]]; then
+            echo "Error: tree-sitter checksum mismatch." >&2
+            exit 1
+        fi
+    )
+
+    cp "$tmp/tree-sitter" "$LOCAL_BIN/tree-sitter"
+    chmod +x "$LOCAL_BIN/tree-sitter"
+
+    rm -rf "$tmp"
+
+    hash -r
+
+    echo "[OK] tree-sitter ${TREE_SITTER_VERSION} installed"
+}
+
+# ------------------------------------------------------------
 # Neovim
 # ------------------------------------------------------------
 
@@ -433,6 +492,7 @@ install_atuin
 install_ripgrep
 install_fd
 install_tmux
+install_tree_sitter
 install_neovim
 install_oh_my_zsh
 install_powerlevel10k
@@ -489,6 +549,7 @@ echo "atuin:  $(command -v atuin)"
 echo "rg:     $(command -v rg)"
 echo "fd:     $(command -v fd)"
 echo "tmux:   $(command -v tmux)"
+echo "tree-sitter: $(command -v tree-sitter)"
 echo "nvim:   $(command -v nvim)"
 echo "omz:    $HOME/.oh-my-zsh"
 echo "p10k:   ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"

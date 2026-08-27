@@ -1,0 +1,71 @@
+name: Build Tree-sitter CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Tree-sitter version
+        required: true
+        default: "0.26.13"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install musl toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Add Rust musl target
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Build Tree-sitter CLI
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cargo install tree-sitter-cli \
+            --version "$VERSION" \
+            --locked \
+            --target x86_64-unknown-linux-musl \
+            --root "$RUNNER_TEMP/tree-sitter"
+
+          cp \
+            "$RUNNER_TEMP/tree-sitter/bin/tree-sitter" \
+            "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+
+          chmod +x "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+
+          sha256sum "$RUNNER_TEMP/tree-sitter-linux-x86_64" \
+            > "$RUNNER_TEMP/tree-sitter-linux-x86_64.sha256"
+
+      - name: Test binary
+        run: |
+          "$RUNNER_TEMP/tree-sitter-linux-x86_64" --version
+          file "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          TAG="tree-sitter-cli-v${VERSION}"
+
+          if ! gh release view "$TAG" \
+            --repo "${{ github.repository }}" >/dev/null 2>&1; then
+
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "Tree-sitter CLI v${VERSION}" \
+              --notes "Statically linked Linux x86_64 Tree-sitter CLI for dotfiles bootstrap."
+          fi
+
+          gh release upload "$TAG" \
+            "$RUNNER_TEMP/tree-sitter-linux-x86_64" \
+            "$RUNNER_TEMP/tree-sitter-linux-x86_64.sha256" \
+            --repo "${{ github.repository }}" \
+            --clobber
