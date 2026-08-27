@@ -12,8 +12,19 @@ permissions:
   contents: write
 
 jobs:
-  build-linux-x86_64:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            asset: tree-sitter-linux-x86_64
+
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            asset: tree-sitter-linux-arm64
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Install musl toolchain
@@ -21,8 +32,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
-      - name: Add Rust musl target
-        run: rustup target add x86_64-unknown-linux-musl
+      - name: Add Rust target
+        run: |
+          rustup target add ${{ matrix.target }}
 
       - name: Build Tree-sitter CLI
         env:
@@ -31,22 +43,41 @@ jobs:
           cargo install tree-sitter-cli \
             --version "$VERSION" \
             --locked \
-            --target x86_64-unknown-linux-musl \
+            --target "${{ matrix.target }}" \
             --root "$RUNNER_TEMP/tree-sitter"
 
           cp \
             "$RUNNER_TEMP/tree-sitter/bin/tree-sitter" \
-            "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+            "$RUNNER_TEMP/${{ matrix.asset }}"
 
-          chmod +x "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+          chmod +x "$RUNNER_TEMP/${{ matrix.asset }}"
 
-          sha256sum "$RUNNER_TEMP/tree-sitter-linux-x86_64" \
-            > "$RUNNER_TEMP/tree-sitter-linux-x86_64.sha256"
+          sha256sum "$RUNNER_TEMP/${{ matrix.asset }}" \
+            > "$RUNNER_TEMP/${{ matrix.asset }}.sha256"
 
       - name: Test binary
         run: |
-          "$RUNNER_TEMP/tree-sitter-linux-x86_64" --version
-          file "$RUNNER_TEMP/tree-sitter-linux-x86_64"
+          "$RUNNER_TEMP/${{ matrix.asset }}" --version
+          file "$RUNNER_TEMP/${{ matrix.asset }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            ${{ runner.temp }}/${{ matrix.asset }}
+            ${{ runner.temp }}/${{ matrix.asset }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
 
       - name: Create release
         env:
@@ -61,11 +92,10 @@ jobs:
             gh release create "$TAG" \
               --repo "${{ github.repository }}" \
               --title "Tree-sitter CLI v${VERSION}" \
-              --notes "Statically linked Linux x86_64 Tree-sitter CLI for dotfiles bootstrap."
+              --notes "Statically linked Linux Tree-sitter CLI binaries."
           fi
 
           gh release upload "$TAG" \
-            "$RUNNER_TEMP/tree-sitter-linux-x86_64" \
-            "$RUNNER_TEMP/tree-sitter-linux-x86_64.sha256" \
+            artifacts/* \
             --repo "${{ github.repository }}" \
             --clobber

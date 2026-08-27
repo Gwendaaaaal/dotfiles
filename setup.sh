@@ -117,6 +117,21 @@ nvim_target() {
     esac
 }
 
+tree_sitter_asset() {
+    case "$(uname -m)" in
+        x86_64|amd64)
+            printf 'tree-sitter-linux-x86_64\n'
+            ;;
+        aarch64|arm64)
+            printf 'tree-sitter-linux-arm64\n'
+            ;;
+        *)
+            echo "Error: unsupported architecture: $(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+}
+
 install_tar_binary() {
     local url="$1"
     local binary_name="$2"
@@ -337,33 +352,27 @@ install_tree_sitter() {
 
     echo "[+] Installing tree-sitter ${TREE_SITTER_VERSION}..."
 
-    case "$(uname -m)" in
-        x86_64|amd64)
-            ;;
-        *)
-            echo "Error: prebuilt tree-sitter currently supports x86_64 only." >&2
-            exit 1
-            ;;
-    esac
+	local tmp
+	local asset
 
-    local tmp
-    tmp="$(mktemp -d)"
+	tmp="$(mktemp -d)"
+	asset="$(tree_sitter_asset)"
 
-    download_file \
-        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/tree-sitter-linux-x86_64" \
-        "$tmp/tree-sitter"
+	download_file \
+		"https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}" \
+		"$tmp/$asset"
 
-    download_file \
-        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/tree-sitter-linux-x86_64.sha256" \
-        "$tmp/tree-sitter.sha256"
+	download_file \
+		"https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}.sha256" \
+		"$tmp/$asset.sha256"
 
     (
         cd "$tmp"
 
         # The checksum file contains the original absolute path generated
         # on GitHub Actions, so only compare the hash itself.
-        expected="$(cut -d ' ' -f1 tree-sitter.sha256)"
-        actual="$(sha256sum tree-sitter | cut -d ' ' -f1)"
+		expected="$(cut -d ' ' -f1 "$tmp/$asset.sha256")"
+		actual="$(sha256sum "$tmp/$asset" | cut -d ' ' -f1)"
 
         if [[ "$expected" != "$actual" ]]; then
             echo "Error: tree-sitter checksum mismatch." >&2
@@ -371,8 +380,8 @@ install_tree_sitter() {
         fi
     )
 
-    cp "$tmp/tree-sitter" "$LOCAL_BIN/tree-sitter"
-    chmod +x "$LOCAL_BIN/tree-sitter"
+	cp "$tmp/$asset" "$LOCAL_BIN/tree-sitter"
+	chmod +x "$LOCAL_BIN/tree-sitter"
 
     rm -rf "$tmp"
 
