@@ -950,6 +950,7 @@ require('lazy').setup({
         'json',
         'lua',
         'luadoc',
+        'make',
         'markdown',
         'markdown_inline',
         'python',
