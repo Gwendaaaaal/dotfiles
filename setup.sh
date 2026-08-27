@@ -4,6 +4,8 @@ set -euo pipefail
 
 DOTFILES="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN="$HOME/.local/bin"
+BACKUP_ROOT="$HOME/.dotfiles-backup"
+BACKUP_DIR=""
 
 STOW_VERSION="2.4.1"
 ATUIN_VERSION="18.18.1"
@@ -13,9 +15,27 @@ TMUX_VERSION="3.6b"
 NVIM_VERSION="0.12.5"
 TREE_SITTER_VERSION="0.26.13"
 
-export PATH="$HOME/.cargo/bin:$LOCAL_BIN:$PATH"
+export PATH="$LOCAL_BIN:$PATH"
 
 mkdir -p "$LOCAL_BIN"
+
+# ------------------------------------------------------------
+# Arguments
+# ------------------------------------------------------------
+
+RESET=false
+
+case "${1:-}" in
+    reset)
+        RESET=true
+        ;;
+    "")
+        ;;
+    *)
+        echo "Usage: $0 [reset]" >&2
+        exit 1
+        ;;
+esac
 
 # ------------------------------------------------------------
 # Helpers
@@ -23,7 +43,7 @@ mkdir -p "$LOCAL_BIN"
 
 require() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        echo "Error: '$1' is required."
+        echo "Error: '$1' is required." >&2
         exit 1
     fi
 }
@@ -118,6 +138,11 @@ nvim_target() {
 }
 
 tree_sitter_asset() {
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo "Error: automatic Tree-sitter installation currently supports Linux only." >&2
+        exit 1
+    fi
+
     case "$(uname -m)" in
         x86_64|amd64)
             printf 'tree-sitter-linux-x86_64\n'
@@ -146,7 +171,7 @@ install_tar_binary() {
     download_file "$url" "$tmp/archive.tar.gz"
     tar -xzf "$tmp/archive.tar.gz" -C "$tmp"
 
-	binary="$(find "$tmp" -type f -name "$binary_name" -print -quit)"
+    binary="$(find "$tmp" -type f -name "$binary_name" -print -quit)"
 
     if [[ -z "$binary" ]]; then
         rm -rf "$tmp"
@@ -158,6 +183,105 @@ install_tar_binary() {
     chmod +x "$LOCAL_BIN/$binary_name"
 
     rm -rf "$tmp"
+    hash -r
+}
+
+# ------------------------------------------------------------
+# Conflict backup
+# ------------------------------------------------------------
+
+ensure_backup_dir() {
+    if [[ -n "$BACKUP_DIR" ]]; then
+        return
+    fi
+
+    mkdir -p "$BACKUP_ROOT"
+    BACKUP_DIR="$(mktemp -d "$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)-XXXXXX")"
+}
+
+backup_existing_path() {
+    local path="$1"
+    local relative
+    local destination
+
+    if [[ ! -e "$path" && ! -L "$path" ]]; then
+        return
+    fi
+
+    if [[ "$path" != "$HOME"/* ]]; then
+        echo "Error: refusing to back up path outside HOME: $path" >&2
+        exit 1
+    fi
+
+    ensure_backup_dir
+
+    relative="${path#"$HOME"/}"
+    destination="$BACKUP_DIR/$relative"
+
+    mkdir -p "$(dirname "$destination")"
+
+    echo "[BACKUP] $path -> $destination"
+    mv "$path" "$destination"
+}
+
+prepare_target_dir() {
+    local target="$1"
+
+    # A Stow target must be a real directory. If the target itself is a
+    # symlink/file, preserve it before replacing it with a directory.
+    if [[ -L "$target" || ( -e "$target" && ! -d "$target" ) ]]; then
+        backup_existing_path "$target"
+    fi
+
+    mkdir -p "$target"
+}
+
+backup_conflicts() {
+    local package="$1"
+    local target="$2"
+    local package_dir="$DOTFILES/$package"
+    local source
+    local relative
+    local destination
+
+    require find
+
+    if [[ ! -d "$package_dir" ]]; then
+        echo "Error: Stow package does not exist: $package_dir" >&2
+        exit 1
+    fi
+
+    prepare_target_dir "$target"
+
+    # First handle directory-shaped paths. A normal directory can be merged by
+    # Stow, but a file or foreign symlink at that location blocks the package.
+    while IFS= read -r -d '' source; do
+        relative="${source#"$package_dir"/}"
+        destination="$target/$relative"
+
+        if [[ -L "$destination" ]]; then
+            if [[ "$destination" -ef "$source" ]]; then
+                continue
+            fi
+            backup_existing_path "$destination"
+        elif [[ -e "$destination" && ! -d "$destination" ]]; then
+            backup_existing_path "$destination"
+        fi
+    done < <(find "$package_dir" -mindepth 1 -type d -print0)
+
+    # Then handle files/symlinks. Existing links that already point into this
+    # package are ours and are left untouched; everything else is backed up.
+    while IFS= read -r -d '' source; do
+        relative="${source#"$package_dir"/}"
+        destination="$target/$relative"
+
+        if [[ -e "$destination" || -L "$destination" ]]; then
+            if [[ "$destination" -ef "$source" ]]; then
+                continue
+            fi
+            backup_existing_path "$destination"
+        fi
+    done < <(find "$package_dir" -mindepth 1 \( -type f -o -type l \) -print0)
 }
 
 # ------------------------------------------------------------
@@ -165,9 +289,14 @@ install_tar_binary() {
 # ------------------------------------------------------------
 
 install_stow() {
-    if command -v stow >/dev/null 2>&1 &&
-       stow --version | head -n 1 | grep -q "$STOW_VERSION"; then
-        echo "[OK] stow 2.4.1 already installed"
+    local current=""
+
+    if command -v stow >/dev/null 2>&1; then
+        current="$(stow --version 2>/dev/null | head -n 1 | awk '{print $NF}')"
+    fi
+
+    if [[ "$current" == "$STOW_VERSION" ]]; then
+        echo "[OK] stow ${STOW_VERSION} already installed"
         return
     fi
 
@@ -194,10 +323,24 @@ install_stow() {
     )
 
     rm -rf "$tmp"
-
-	hash -r
+    hash -r
 
     echo "[OK] stow ${STOW_VERSION} installed"
+}
+
+reset_dotfiles() {
+    echo "[+] Removing existing dotfile symlinks..."
+
+    # HOME always exists.
+    stow -D -d "$DOTFILES" --target="$HOME" zsh || true
+    stow -D -d "$DOTFILES" --target="$HOME" tmux || true
+
+    # The nvim target may not exist yet on a fresh machine.
+    if [[ -d "$HOME/.config/nvim" ]]; then
+        stow -D -d "$DOTFILES" --target="$HOME/.config/nvim" nvim || true
+    fi
+
+    echo "[OK] Existing dotfile symlinks removed"
 }
 
 # ------------------------------------------------------------
@@ -216,6 +359,7 @@ install_zoxide() {
         "https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh" |
         sh
 
+    hash -r
     echo "[OK] zoxide installed"
 }
 
@@ -246,6 +390,7 @@ install_fzf() {
     chmod +x "$LOCAL_BIN/fzf"
 
     rm -rf "$tmp"
+    hash -r
 
     echo "[OK] fzf installed"
 }
@@ -255,12 +400,18 @@ install_fzf() {
 # ------------------------------------------------------------
 
 install_atuin() {
+    local current=""
+
     if command -v atuin >/dev/null 2>&1; then
-        echo "[OK] atuin already installed"
+        current="$(atuin --version 2>/dev/null | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$ATUIN_VERSION" ]]; then
+        echo "[OK] atuin ${ATUIN_VERSION} already installed"
         return
     fi
 
-    echo "[+] Installing atuin..."
+    echo "[+] Installing atuin ${ATUIN_VERSION}..."
 
     local target
     target="$(linux_target)"
@@ -269,7 +420,7 @@ install_atuin() {
         "https://github.com/atuinsh/atuin/releases/download/v${ATUIN_VERSION}/atuin-${target}.tar.gz" \
         atuin
 
-    echo "[OK] atuin installed"
+    echo "[OK] atuin ${ATUIN_VERSION} installed"
 }
 
 # ------------------------------------------------------------
@@ -277,12 +428,18 @@ install_atuin() {
 # ------------------------------------------------------------
 
 install_ripgrep() {
+    local current=""
+
     if command -v rg >/dev/null 2>&1; then
-        echo "[OK] ripgrep already installed"
+        current="$(rg --version 2>/dev/null | head -n 1 | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$RIPGREP_VERSION" ]]; then
+        echo "[OK] ripgrep ${RIPGREP_VERSION} already installed"
         return
     fi
 
-    echo "[+] Installing ripgrep..."
+    echo "[+] Installing ripgrep ${RIPGREP_VERSION}..."
 
     local target
     target="$(linux_target)"
@@ -291,7 +448,7 @@ install_ripgrep() {
         "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-${target}.tar.gz" \
         rg
 
-    echo "[OK] ripgrep installed"
+    echo "[OK] ripgrep ${RIPGREP_VERSION} installed"
 }
 
 # ------------------------------------------------------------
@@ -299,12 +456,18 @@ install_ripgrep() {
 # ------------------------------------------------------------
 
 install_fd() {
+    local current=""
+
     if command -v fd >/dev/null 2>&1; then
-        echo "[OK] fd already installed"
+        current="$(fd --version 2>/dev/null | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$FD_VERSION" ]]; then
+        echo "[OK] fd ${FD_VERSION} already installed"
         return
     fi
 
-    echo "[+] Installing fd..."
+    echo "[+] Installing fd ${FD_VERSION}..."
 
     local target
     target="$(linux_target)"
@@ -313,7 +476,7 @@ install_fd() {
         "https://github.com/sharkdp/fd/releases/download/v${FD_VERSION}/fd-v${FD_VERSION}-${target}.tar.gz" \
         fd
 
-    echo "[OK] fd installed"
+    echo "[OK] fd ${FD_VERSION} installed"
 }
 
 # ------------------------------------------------------------
@@ -321,12 +484,18 @@ install_fd() {
 # ------------------------------------------------------------
 
 install_tmux() {
+    local current=""
+
     if command -v tmux >/dev/null 2>&1; then
-        echo "[OK] tmux already installed"
+        current="$(tmux -V 2>/dev/null | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$TMUX_VERSION" ]]; then
+        echo "[OK] tmux ${TMUX_VERSION} already installed"
         return
     fi
 
-    echo "[+] Installing tmux..."
+    echo "[+] Installing tmux ${TMUX_VERSION}..."
 
     local target
     target="$(tmux_target)"
@@ -335,7 +504,7 @@ install_tmux() {
         "https://github.com/tmux/tmux-builds/releases/download/v${TMUX_VERSION}/tmux-${TMUX_VERSION}-${target}.tar.gz" \
         tmux
 
-    echo "[OK] tmux installed"
+    echo "[OK] tmux ${TMUX_VERSION} installed"
 }
 
 # ------------------------------------------------------------
@@ -343,48 +512,54 @@ install_tmux() {
 # ------------------------------------------------------------
 
 install_tree_sitter() {
+    local current=""
+
     if command -v tree-sitter >/dev/null 2>&1 &&
-       tree-sitter --version >/dev/null 2>&1 &&
-       [[ "$(tree-sitter --version)" == "tree-sitter ${TREE_SITTER_VERSION}"* ]]; then
+       tree-sitter --version >/dev/null 2>&1; then
+        current="$(tree-sitter --version | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$TREE_SITTER_VERSION" ]]; then
         echo "[OK] tree-sitter ${TREE_SITTER_VERSION} already installed"
         return
     fi
 
     echo "[+] Installing tree-sitter ${TREE_SITTER_VERSION}..."
 
-	local tmp
-	local asset
+    # nvim-treesitter uses the CLI to build parsers, which also requires a C
+    # compiler to be available on the destination machine.
+    require cc
+    require sha256sum
 
-	tmp="$(mktemp -d)"
-	asset="$(tree_sitter_asset)"
+    local tmp
+    local asset
+    local expected
+    local actual
 
-	download_file \
-		"https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}" \
-		"$tmp/$asset"
+    tmp="$(mktemp -d)"
+    asset="$(tree_sitter_asset)"
 
-	download_file \
-		"https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}.sha256" \
-		"$tmp/$asset.sha256"
+    download_file \
+        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}" \
+        "$tmp/$asset"
 
-    (
-        cd "$tmp"
+    download_file \
+        "https://github.com/Gwendaaaaal/dotfiles/releases/download/tree-sitter-cli-v${TREE_SITTER_VERSION}/${asset}.sha256" \
+        "$tmp/$asset.sha256"
 
-        # The checksum file contains the original absolute path generated
-        # on GitHub Actions, so only compare the hash itself.
-		expected="$(cut -d ' ' -f1 "$tmp/$asset.sha256")"
-		actual="$(sha256sum "$tmp/$asset" | cut -d ' ' -f1)"
+    expected="$(awk '{print $1}' "$tmp/$asset.sha256")"
+    actual="$(sha256sum "$tmp/$asset" | awk '{print $1}')"
 
-        if [[ "$expected" != "$actual" ]]; then
-            echo "Error: tree-sitter checksum mismatch." >&2
-            exit 1
-        fi
-    )
+    if [[ "$expected" != "$actual" ]]; then
+        rm -rf "$tmp"
+        echo "Error: tree-sitter checksum mismatch." >&2
+        exit 1
+    fi
 
-	cp "$tmp/$asset" "$LOCAL_BIN/tree-sitter"
-	chmod +x "$LOCAL_BIN/tree-sitter"
+    cp "$tmp/$asset" "$LOCAL_BIN/tree-sitter"
+    chmod +x "$LOCAL_BIN/tree-sitter"
 
     rm -rf "$tmp"
-
     hash -r
 
     echo "[OK] tree-sitter ${TREE_SITTER_VERSION} installed"
@@ -429,36 +604,9 @@ install_neovim() {
     ln -sfn "$install_dir/bin/nvim" "$LOCAL_BIN/nvim"
 
     rm -rf "$tmp"
-
     hash -r
 
     echo "[OK] neovim ${NVIM_VERSION} installed"
-}
-
-# ------------------------------------------------------------
-# Powerlevel10k
-# ------------------------------------------------------------
-
-install_powerlevel10k() {
-    local p10k_dir
-    p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
-
-    if [[ -f "$p10k_dir/powerlevel10k.zsh-theme" ]]; then
-        echo "[OK] powerlevel10k already installed"
-        return
-    fi
-
-    echo "[+] Installing powerlevel10k..."
-
-    require git
-
-    mkdir -p "$(dirname "$p10k_dir")"
-
-    git clone --depth=1 \
-        https://github.com/romkatv/powerlevel10k.git \
-        "$p10k_dir"
-
-    echo "[OK] powerlevel10k installed"
 }
 
 # ------------------------------------------------------------
@@ -491,10 +639,55 @@ install_oh_my_zsh() {
 }
 
 # ------------------------------------------------------------
+# Powerlevel10k
+# ------------------------------------------------------------
+
+install_powerlevel10k() {
+    local p10k_dir
+    p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+
+    if [[ -f "$p10k_dir/powerlevel10k.zsh-theme" ]]; then
+        echo "[OK] powerlevel10k already installed"
+        return
+    fi
+
+    echo "[+] Installing powerlevel10k..."
+
+    require git
+
+    mkdir -p "$(dirname "$p10k_dir")"
+
+    git clone --depth=1 \
+        https://github.com/romkatv/powerlevel10k.git \
+        "$p10k_dir"
+
+    echo "[OK] powerlevel10k installed"
+}
+
+# ------------------------------------------------------------
+# Bootstrap / reset
+# ------------------------------------------------------------
+
+# Stow is special: reset needs it before anything can be unstowed.
+install_stow
+
+if [[ "$RESET" == true ]]; then
+    reset_dotfiles
+fi
+
+# Back up real files/symlinks that would conflict with the repository.
+# This also runs on a normal first install, so cloning onto an already
+# configured machine is safe.
+echo "[+] Checking dotfile conflicts..."
+backup_conflicts zsh "$HOME"
+backup_conflicts nvim "$HOME/.config/nvim"
+backup_conflicts tmux "$HOME"
+echo "[OK] Dotfile conflicts checked"
+
+# ------------------------------------------------------------
 # Install tools
 # ------------------------------------------------------------
 
-install_stow
 install_zoxide
 install_fzf
 install_atuin
@@ -507,58 +700,34 @@ install_oh_my_zsh
 install_powerlevel10k
 
 # ------------------------------------------------------------
-# Reset
-# ------------------------------------------------------------
-
-reset_dotfiles() {
-    echo "[+] Removing dotfile symlinks..."
-
-    if ! command -v stow >/dev/null 2>&1; then
-        echo "Error: stow is required to reset dotfiles." >&2
-        exit 1
-    fi
-
-    stow -D -d "$DOTFILES" --target="$HOME" zsh
-    stow -D -d "$DOTFILES" --target="$HOME/.config/nvim" nvim
-    stow -D -d "$DOTFILES" --target="$HOME" tmux
-
-    echo "[OK] Dotfile symlinks removed"
-}
-
-case "${1:-}" in
-    reset)
-        reset_dotfiles
-        ;;
-    "")
-        ;;
-    *)
-        echo "Usage: $0 [reset]" >&2
-        exit 1
-        ;;
-esac
-
-# ------------------------------------------------------------
 # Dotfiles
 # ------------------------------------------------------------
 
 echo "[+] Installing dotfiles..."
 
-mkdir -p "$HOME/.config/nvim"
-
 stow -d "$DOTFILES" --target="$HOME" zsh
 stow -d "$DOTFILES" --target="$HOME/.config/nvim" nvim
 stow -d "$DOTFILES" --target="$HOME" tmux
 
+# ------------------------------------------------------------
+# Summary
+# ------------------------------------------------------------
+
 echo
 echo "Done."
-echo "stow:   $(command -v stow)"
-echo "zoxide: $(command -v zoxide)"
-echo "fzf:    $(command -v fzf)"
-echo "atuin:  $(command -v atuin)"
-echo "rg:     $(command -v rg)"
-echo "fd:     $(command -v fd)"
-echo "tmux:   $(command -v tmux)"
+
+if [[ -n "$BACKUP_DIR" ]]; then
+    echo "backup: $BACKUP_DIR"
+fi
+
+echo "stow:        $(command -v stow)"
+echo "zoxide:      $(command -v zoxide)"
+echo "fzf:         $(command -v fzf)"
+echo "atuin:       $(command -v atuin)"
+echo "rg:          $(command -v rg)"
+echo "fd:          $(command -v fd)"
+echo "tmux:        $(command -v tmux)"
 echo "tree-sitter: $(command -v tree-sitter)"
-echo "nvim:   $(command -v nvim)"
-echo "omz:    $HOME/.oh-my-zsh"
-echo "p10k:   ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+echo "nvim:        $(command -v nvim)"
+echo "omz:         $HOME/.oh-my-zsh"
+echo "p10k:        ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
