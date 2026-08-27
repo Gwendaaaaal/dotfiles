@@ -55,30 +55,30 @@ jobs:
             --locked \
             --root "$RUNNER_TEMP/tree-sitter"
 
+          mkdir -p dist
+
           cp \
             "$RUNNER_TEMP/tree-sitter/bin/tree-sitter" \
-            "$RUNNER_TEMP/${{ matrix.asset }}"
+            "dist/${{ matrix.asset }}"
 
-          chmod +x "$RUNNER_TEMP/${{ matrix.asset }}"
+          chmod +x "dist/${{ matrix.asset }}"
 
-          sha256sum "$RUNNER_TEMP/${{ matrix.asset }}" \
-            > "$RUNNER_TEMP/${{ matrix.asset }}.sha256"
+          sha256sum "dist/${{ matrix.asset }}" \
+            > "dist/${{ matrix.asset }}.sha256"
 
       - name: Test binary
         run: |
-          "$RUNNER_TEMP/${{ matrix.asset }}" --version
-
-          file "$RUNNER_TEMP/${{ matrix.asset }}"
-
-          ldd "$RUNNER_TEMP/${{ matrix.asset }}"
+          "dist/${{ matrix.asset }}" --version
+          file "dist/${{ matrix.asset }}"
+          ldd "dist/${{ matrix.asset }}"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
           path: |
-            ${{ runner.temp }}/${{ matrix.asset }}
-            ${{ runner.temp }}/${{ matrix.asset }}.sha256
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.sha256
 
   release:
     needs: build
