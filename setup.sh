@@ -14,6 +14,8 @@ FD_VERSION="10.4.2"
 TMUX_VERSION="3.6b"
 NVIM_VERSION="0.12.5"
 TREE_SITTER_VERSION="0.26.13"
+ZSH_VERSION="5.9.2"
+ZSH_SHA256="36fa734374b44783582cec09bcd67822e2f992c779ec1624ab5596df078d2f81"
 
 export PATH="$LOCAL_BIN:$PATH"
 
@@ -610,6 +612,64 @@ install_neovim() {
 }
 
 # ------------------------------------------------------------
+# Zsh
+# ------------------------------------------------------------
+
+install_zsh() {
+    local current=""
+
+    if command -v zsh >/dev/null 2>&1; then
+        current="$(zsh --version 2>/dev/null | awk '{print $2}')"
+    fi
+
+    if [[ "$current" == "$ZSH_VERSION" ]]; then
+        echo "[OK] zsh ${ZSH_VERSION} already installed"
+        return
+    fi
+
+    echo "[+] Installing zsh ${ZSH_VERSION}..."
+
+    require cc
+    require make
+    require tar
+    require sha256sum
+
+    local tmp
+    local archive
+    local actual
+
+    tmp="$(mktemp -d)"
+    archive="$tmp/zsh-${ZSH_VERSION}.tar.xz"
+
+    download_file \
+        "https://www.zsh.org/pub/zsh-${ZSH_VERSION}.tar.xz" \
+        "$archive"
+
+    actual="$(sha256sum "$archive" | awk '{print $1}')"
+    if [[ "$actual" != "$ZSH_SHA256" ]]; then
+        rm -rf "$tmp"
+        echo "Error: zsh checksum mismatch." >&2
+        exit 1
+    fi
+
+    tar -xf "$archive" -C "$tmp"
+
+    (
+        cd "$tmp/zsh-${ZSH_VERSION}"
+        ./configure \
+            --prefix="$HOME/.local" \
+            --enable-multibyte
+        make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
+        make install
+    )
+
+    rm -rf "$tmp"
+    hash -r
+
+    echo "[OK] zsh ${ZSH_VERSION} installed"
+}
+
+# ------------------------------------------------------------
 # Oh My Zsh
 # ------------------------------------------------------------
 
@@ -696,6 +756,7 @@ install_fd
 install_tmux
 install_tree_sitter
 install_neovim
+install_zsh
 install_oh_my_zsh
 install_powerlevel10k
 
@@ -729,5 +790,6 @@ echo "fd:          $(command -v fd)"
 echo "tmux:        $(command -v tmux)"
 echo "tree-sitter: $(command -v tree-sitter)"
 echo "nvim:        $(command -v nvim)"
+echo "zsh:         $(command -v zsh)"
 echo "omz:         $HOME/.oh-my-zsh"
 echo "p10k:        ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
