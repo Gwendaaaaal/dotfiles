@@ -171,7 +171,7 @@ install_tar_binary() {
     tmp="$(mktemp -d)"
 
     download_file "$url" "$tmp/archive.tar.gz"
-    tar -xzf "$tmp/archive.tar.gz" -C "$tmp"
+    tar --no-same-owner -xzf "$tmp/archive.tar.gz" -C "$tmp"
 
     binary="$(find "$tmp" -type f -name "$binary_name" -print -quit)"
 
@@ -315,7 +315,7 @@ install_stow() {
         "https://ftp.gnu.org/gnu/stow/stow-${STOW_VERSION}.tar.gz" \
         "$tmp/stow.tar.gz"
 
-    tar -xzf "$tmp/stow.tar.gz" -C "$tmp"
+    tar --no-same-owner -xzf "$tmp/stow.tar.gz" -C "$tmp"
 
     (
         cd "$tmp/stow-${STOW_VERSION}"
@@ -599,7 +599,7 @@ install_neovim() {
     rm -rf "$install_dir"
     mkdir -p "$install_dir"
 
-    tar -xzf "$tmp/nvim.tar.gz" \
+    tar --no-same-owner -xzf "$tmp/nvim.tar.gz" \
         -C "$install_dir" \
         --strip-components=1
 
@@ -652,7 +652,7 @@ install_zsh() {
         exit 1
     fi
 
-    tar -xf "$archive" -C "$tmp"
+    tar --no-same-owner -xf "$archive" -C "$tmp"
 
     (
         cd "$tmp/zsh-${ZSH_VERSION}"
