@@ -34,9 +34,21 @@ vim.o.showmode = false
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
-end)
+if vim.env.SSH_TTY then
+  local osc52 = require 'vim.ui.clipboard.osc52'
+
+  vim.api.nvim_create_autocmd('TextYankPost', {
+    callback = function()
+      if vim.v.event.operator == 'y' then
+        osc52.copy '+'(vim.v.event.regcontents)
+      end
+    end,
+  })
+else
+  vim.schedule(function()
+    vim.o.clipboard = 'unnamedplus'
+  end)
+end
 
 -- Enable break indent
 vim.o.breakindent = true
@@ -678,33 +690,33 @@ require('lazy').setup({
       -- Configure the servers with Neovim's native LSP API.
       -- mason-lspconfig v2 removed the old `handlers` API.
       local server_names = vim.tbl_keys(servers)
+      local machine = vim.uv.os_uname().machine
+      local is_arm64 = machine == 'aarch64' or machine == 'arm64'
+
+      local mason_server_names = vim.tbl_filter(function(server_name)
+        -- Mason ne fournit pas clangd pour Linux ARM64.
+        -- Sur ARM64, clangd est installé avec apt.
+        return server_name ~= 'clangd' or not is_arm64
+      end, server_names)
 
       for server_name, server in pairs(servers) do
         server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+
         vim.lsp.config(server_name, server)
       end
 
-      -- Ensure the servers and tools above are installed
-      --
-      -- To check the current status of installed tools and/or manually install
-      -- other tools, you can run
-      --    :Mason
-      --
-      -- You can press `g?` for help in this menu.
-      --
-      -- `mason` had to be setup earlier: to configure its options see the
-      -- `dependencies` table for `nvim-lspconfig` above.
-      --
-      -- You can add other tools here that you want Mason to install
-      -- for you, so that they are available from within Neovim.
       require('mason-lspconfig').setup {
-        ensure_installed = server_names,
-        automatic_enable = server_names,
+        ensure_installed = mason_server_names,
+        automatic_enable = mason_server_names,
       }
+
+      if is_arm64 then
+        vim.lsp.enable 'clangd'
+      end
 
       require('mason-tool-installer').setup {
         ensure_installed = {
-          'stylua', -- Used to format Lua code
+          'stylua',
         },
       }
     end,
@@ -939,7 +951,7 @@ require('lazy').setup({
 
       treesitter.setup {}
 
-      treesitter.install {
+      local parsers = {
         'bash',
         'c',
         'cpp',
@@ -959,6 +971,9 @@ require('lazy').setup({
         'vimdoc',
         'yaml',
       }
+
+      treesitter.install(parsers)
+      treesitter.update(parsers)
 
       vim.api.nvim_create_autocmd('FileType', {
         callback = function(event)
