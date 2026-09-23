@@ -138,16 +138,68 @@ vim.keymap.set('n', '<C-S-l>', '<C-w>L', { desc = 'Move window to the right' })
 vim.keymap.set('n', '<C-S-j>', '<C-w>J', { desc = 'Move window to the lower' })
 vim.keymap.set('n', '<C-S-k>', '<C-w>K', { desc = 'Move window to the upper' })
 
+local terminal_buf = nil
+local terminal_win = nil
+
+local function hide_terminal_split()
+  if terminal_win and vim.api.nvim_win_is_valid(terminal_win) then
+    vim.api.nvim_win_hide(terminal_win)
+  end
+
+  terminal_win = nil
+end
+
+local function open_terminal_split(start_insert)
+  local height = vim.api.nvim_win_get_height(0)
+  local terminal_height = math.max(5, math.floor(height / 4))
+
+  -- Open above the current window
+  vim.cmd 'aboveleft split'
+  terminal_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_height(terminal_win, terminal_height)
+
+  -- Reuse the existing terminal, or create it the first time
+  if terminal_buf and vim.api.nvim_buf_is_valid(terminal_buf) then
+    vim.api.nvim_win_set_buf(terminal_win, terminal_buf)
+  else
+    vim.cmd 'terminal'
+    terminal_buf = vim.api.nvim_get_current_buf()
+
+    -- Keep the terminal alive when its window is closed
+    vim.bo[terminal_buf].bufhidden = 'hide'
+  end
+
+  if start_insert then
+    vim.cmd 'startinsert'
+  end
+end
+
+local function toggle_terminal_split()
+  if terminal_win and vim.api.nvim_win_is_valid(terminal_win) then
+    hide_terminal_split()
+  else
+    open_terminal_split(true)
+  end
+end
+
+vim.keymap.set({ 'n', 't' }, '<C-w>t', toggle_terminal_split, {
+  desc = 'Toggle terminal split',
+})
+
 local function layout_left_and_right_with_terminal_top()
-  vim.cmd 'only' -- reset to single window
-  vim.cmd 'vsplit' -- right column
+  -- Preserve the terminal before rebuilding the layout
+  hide_terminal_split()
+
+  vim.cmd 'only'
+  vim.cmd 'vsplit'
   vim.cmd 'wincmd l'
-  vim.cmd 'split' -- split right column
-  vim.cmd 'wincmd k'
-  vim.cmd 'resize 12' -- terminal height
-  vim.cmd 'terminal' -- open terminal
-  vim.cmd 'wincmd j' -- bottom-right
-  vim.cmd 'wincmd h' -- back to left
+
+  -- Reuse the same terminal in the top-right quarter
+  open_terminal_split(false)
+
+  -- Return focus to the left editor
+  vim.cmd 'wincmd j'
+  vim.cmd 'wincmd h'
 end
 
 vim.keymap.set('n', '<leader>ol', layout_left_and_right_with_terminal_top, {
