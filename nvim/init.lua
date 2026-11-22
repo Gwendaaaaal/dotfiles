@@ -30,6 +30,21 @@ vim.o.mouse = 'a'
 -- Don't show the mode, since it's already in the status line
 vim.o.showmode = false
 
+if vim.fn.has 'wsl' == 1 then
+  vim.g.clipboard = {
+    name = 'WslClipboard',
+    copy = {
+      ['+'] = 'clip.exe',
+      ['*'] = 'clip.exe',
+    },
+    paste = {
+      ['+'] = 'powershell.exe -NoLogo -NoProfile -Command "[Console]::Out.Write((Get-Clipboard -Raw).ToString().Replace("`r", ""))"',
+      ['*'] = 'powershell.exe -NoLogo -NoProfile -Command "[Console]::Out.Write((Get-Clipboard -Raw).ToString().Replace("`r", ""))"',
+    },
+    cache_enabled = 0,
+  }
+end
+
 -- Sync clipboard between OS and Neovim.
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.

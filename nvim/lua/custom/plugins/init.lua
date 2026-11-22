@@ -226,6 +226,16 @@ return {
     },
   },
   {
+    'rauls-kjarners/omp.nvim',
+
+    event = 'VeryLazy',
+
+    config = function()
+      require('omp').setup()
+      require('custom.omp_popup').setup()
+    end,
+  },
+  {
     'kawre/leetcode.nvim',
 
     cmd = 'Leet',

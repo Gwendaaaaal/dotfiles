@@ -137,6 +137,10 @@ export NVM_DIR="$HOME/.nvm"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
+if command -v omp >/dev/null 2>&1; then
+    eval "$(omp completions zsh)"
+fi
+
 if command -v atuin >/dev/null 2>&1; then
     eval "$(atuin init zsh --disable-up-arrow)"
 fi
