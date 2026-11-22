@@ -8,6 +8,7 @@ Personal Zsh, tmux, and Neovim configuration, installed locally with GNU Stow.
 - tmux with vi-style navigation, mouse support, and OSC 52 clipboard support
 - Neovim with LSP, Treesitter, Telescope, completion, formatting, Git signs, and custom plugins
 - User-local installs of Stow, Atuin, ripgrep, fd, tmux, Tree-sitter, Neovim, and Zsh
+- Oh My Pi (OMP) with shared configuration
 
 ## Prerequisites
 
@@ -47,6 +48,7 @@ Reset does not uninstall tools or restore backups.
 zsh/                    Zsh and Powerlevel10k configuration
 tmux/                   tmux configuration
 nvim/                   Neovim configuration and plugin lockfile
+omp/                    OMP configuration
 setup.sh                Installer, backup, reset, and Stow deployment
 .github/workflows/      Tree-sitter release build
 ```

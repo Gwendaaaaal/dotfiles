@@ -13,6 +13,7 @@ RIPGREP_VERSION="15.2.0"
 FD_VERSION="10.4.2"
 TMUX_VERSION="3.6b"
 NVIM_VERSION="0.12.5"
+OMP_VERSION="19.1.0"
 TREE_SITTER_VERSION="0.26.13"
 ZSH_VERSION="5.9.2"
 ZSH_SHA256="36fa734374b44783582cec09bcd67822e2f992c779ec1624ab5596df078d2f81"
@@ -568,6 +569,85 @@ install_tree_sitter() {
 }
 
 # ------------------------------------------------------------
+# Oh My Pi (OMP)
+# ------------------------------------------------------------
+
+omp_asset() {
+    local arch
+
+    case "$(linux_target)" in
+        x86_64-unknown-linux-musl) arch="x64" ;;
+        aarch64-unknown-linux-musl) arch="arm64" ;;
+        *) return 1 ;;
+    esac
+
+    if [[ -f /etc/alpine-release ]] ||
+       { command -v ldd >/dev/null 2>&1 &&
+         ldd --version 2>&1 | grep -qi musl; }; then
+        printf 'omp-linux-musl-%s\n' "$arch"
+    else
+        printf 'omp-linux-%s\n' "$arch"
+    fi
+}
+
+omp_expected_sha256() {
+    case "$1" in
+        omp-linux-x64)
+            echo "be2b45c437b623e15c29b1f8c98aacb842f92118196454b5e9eed884359e9a01" ;;
+        omp-linux-arm64)
+            echo "785e8e519acb55852a85e5495271d768a221ca92c095c043cd3eb0d7f8d3eafc" ;;
+        omp-linux-musl-x64)
+            echo "5c02547962b732be5a4c54b3af8eb6e6c20c1768a7f32ecb6e85c30b9459dbe9" ;;
+        omp-linux-musl-arm64)
+            echo "c687150d5aabadf0622372b2bf8e6ff81692131ff70fc9c754ccdcb29fff5ace" ;;
+        *) return 1 ;;
+    esac
+}
+
+install_omp() (
+    local current="" asset expected actual staged output
+
+    if [[ -x "$LOCAL_BIN/omp" ]]; then
+        current="$("$LOCAL_BIN/omp" --version 2>/dev/null || true)"
+    fi
+
+    if [[ "$current" == "$OMP_VERSION" ||
+          "$current" == *" $OMP_VERSION" ]]; then
+        echo "[OK] omp ${OMP_VERSION} already installed"
+        return
+    fi
+
+    echo "[+] Installing omp ${OMP_VERSION}..."
+    require sha256sum
+
+    asset="$(omp_asset)"
+    expected="$(omp_expected_sha256 "$asset")"
+
+    staged="$(mktemp "$LOCAL_BIN/.omp.XXXXXX")"
+    trap 'rm -f "$staged"' EXIT
+
+    download_file \
+        "https://github.com/can1357/oh-my-pi/releases/download/v${OMP_VERSION}/$asset" \
+        "$staged"
+
+    actual="$(sha256sum "$staged" | awk '{print $1}')"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "Error: omp checksum mismatch for $asset." >&2
+        return 1
+    fi
+
+    chmod +x "$staged"
+
+    if ! output="$("$staged" --version 2>&1)"; then
+        echo "Error: omp cannot start: $output" >&2
+        return 1
+    fi
+
+    mv -f "$staged" "$LOCAL_BIN/omp"
+    echo "[OK] omp ${OMP_VERSION} installed"
+)
+
+# ------------------------------------------------------------
 # Neovim
 # ------------------------------------------------------------
 
@@ -756,6 +836,7 @@ install_fd
 install_tmux
 install_tree_sitter
 install_neovim
+install_omp
 install_zsh
 install_oh_my_zsh
 install_powerlevel10k
@@ -790,6 +871,7 @@ echo "fd:          $(command -v fd)"
 echo "tmux:        $(command -v tmux)"
 echo "tree-sitter: $(command -v tree-sitter)"
 echo "nvim:        $(command -v nvim)"
+echo "omp:         $(command -v omp)"
 echo "zsh:         $(command -v zsh)"
 echo "omz:         $HOME/.oh-my-zsh"
 echo "p10k:        ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
