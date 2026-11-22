@@ -335,8 +335,9 @@ reset_dotfiles() {
     echo "[+] Removing existing dotfile symlinks..."
 
     # HOME always exists.
-    stow -D -d "$DOTFILES" --target="$HOME" zsh || true
-    stow -D -d "$DOTFILES" --target="$HOME" tmux || true
+	stow -D -d "$DOTFILES" --target="$HOME" zsh || true
+	stow -D -d "$DOTFILES" --target="$HOME" tmux || true
+	stow -D --no-folding -d "$DOTFILES" --target="$HOME" omp || true
 
     # The nvim target may not exist yet on a fresh machine.
     if [[ -d "$HOME/.config/nvim" ]]; then
@@ -822,6 +823,7 @@ echo "[+] Checking dotfile conflicts..."
 backup_conflicts zsh "$HOME"
 backup_conflicts nvim "$HOME/.config/nvim"
 backup_conflicts tmux "$HOME"
+backup_conflicts omp "$HOME"
 echo "[OK] Dotfile conflicts checked"
 
 # ------------------------------------------------------------
@@ -850,6 +852,7 @@ echo "[+] Installing dotfiles..."
 stow -d "$DOTFILES" --target="$HOME" zsh
 stow -d "$DOTFILES" --target="$HOME/.config/nvim" nvim
 stow -d "$DOTFILES" --target="$HOME" tmux
+stow --no-folding -d "$DOTFILES" --target="$HOME" omp
 
 # ------------------------------------------------------------
 # Summary
